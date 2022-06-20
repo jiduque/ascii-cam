@@ -1,84 +1,144 @@
+import warnings
 import argparse
 
 from pathlib import Path
+from functools import partial
 
-import numpy as np
-
-from numpy.typing import ArrayLike
 from PIL import Image
 
-ASCII_CHARS = "`^\",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczmwqpdbkhao*XYUJCLQ0OZ#MW&8%B@$"
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+ASCII_CHARS = "`^\",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
 MAX_PIXEL_VALUE = 255
 
 
 Pixel = list[int, int, int]
-MyImage = ArrayLike[Pixel]
+ImageArray = list[list[Pixel]]
+Brightness = float
+BrightnessArray = list[list[Brightness]]
+ASCIIMap = str
 ASCIIChar = str
 ASCIIImage = list[list[ASCIIChar]]
 
 
-# TODO: Return list of list of tuples representing RGB values
-def load_image(path: Path) -> MyImage:
+def preprocess_image(image: Image) -> Image:
+    basewidth = 300
+    width, height = image.size
+    wpercent = (basewidth / float(width))
+    hsize = int((float(height) * float(wpercent)))
+    return image.resize((basewidth, hsize), Image.ANTIALIAS)
+
+
+def load_image(path: Path) -> ImageArray:
     with Image.open(path) as image:
-        return np.array(image.getdata())
+        new_image = preprocess_image(image)
+        width, height = new_image.size
+        pixels = list(new_image.getdata())
+        return [pixels[i:i + width] for i in range(0, len(pixels), width)]
 
 
-# TODO: Implement the two functions below
-def save_image(image: MyImage, path: Path) -> None:
-    pass
+def save_image(image: ASCIIImage, path: Path) -> None:
+    with path.open(mode='w') as file:
+        output_string = '\n'.join([''.join(row) for row in image])
+        file.write(output_string)
 
 
-def default_save(path: Path) -> Path:
-    pass
+def default_output_name(path: Path) -> Path:
+    name_split = path.name.split('.')
+    name = ''.join(name_split[:-1])
+    return Path(f"{name}_ascii.txt")
 
 
 def brightness(pixel: Pixel) -> float:
-    n = len(pixel)
-    avg = sum(pixel) / n
-    return min(avg, MAX_PIXEL_VALUE)
+    # luminosity weights, avg is 1/3, 1/3, 1/3
+    weights = (0.21, 0.72, 0.07)
+
+    output = 0
+    for p, w in zip(pixel, weights):
+        output += p * w
+
+    return min(output, MAX_PIXEL_VALUE)
 
 
-def nearest_ascii_char(pixel_brightness: float) -> ASCIIChar:
-    n = len(ASCII_CHARS)
-    output, diff = ASCII_CHARS[0], pixel_brightness
-    for i in range(n):
-        curr_diff = abs(pixel_brightness - (i * MAX_PIXEL_VALUE / (n - 1)))
-        if curr_diff < diff:
-            output = ASCII_CHARS[i]
-            diff = curr_diff
+def brightness_matrix(image: ImageArray) -> BrightnessArray:
+    return [list(map(brightness, row)) for row in image]
+
+
+def normalize_brightness(brightness_mat: BrightnessArray) -> BrightnessArray:
+    max_pixel = max(max(x) for x in brightness_mat)
+    min_pixel = min(min(x) for x in brightness_mat)
+
+    output = brightness_mat.copy()
+
+    for i, row in enumerate(brightness_mat):
+        for j, pixel in enumerate(row):
+            output[i][j] = MAX_PIXEL_VALUE * (pixel - min_pixel) / float(max_pixel - min_pixel)
 
     return output
 
 
-# TODO: Fix Mapping
-def asciify(image: MyImage) -> ASCIIImage:
-    return list(map(nearest_ascii_char, map(brightness, image)))
+def ascii_char(pixel_brightness: float, ascii_map: ASCIIMap = ASCIIMap) -> ASCIIChar:
+    n = len(ascii_map)
+    i_hat = (n - 1) * pixel_brightness / MAX_PIXEL_VALUE
+    index = round(i_hat)
+    return ascii_map[index]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description='Convert image to ASCII image')
-    parser.add_argument('image', help='The path to the image you want to convert')
-    parser.add_argument('-o', default=None, help="output file name")
-
-    args = parser.parse_args()
-    file_path = Path(args.image)
-    if not file_path.exists():
-        print(f"File {file_path.name} does not exist")
-        return
-
-    print(f"Loading file {file_path.name}")
-    image = load_image(file_path)
-    print("Converting file")
-    output = asciify(image)
-
-    output_name = file_path.name
-    print(f"Finished! File saved as {output_name}")
-    save_image(output, output_name)
-    print(output)
+def asciify(brightness_mat: BrightnessArray, ascii_map: ASCIIMap = ASCII_CHARS) -> ASCIIImage:
+    map_func = partial(ascii_char, ascii_map=ascii_map)
+    return [list(map(map_func, row)) for row in brightness_mat]
 
 
-# Press the green button in the gutter to run the script.
+def convert(ascii_map: ASCIIMap, image: ImageArray) -> ASCIIImage:
+    brightness_mat = brightness_matrix(image)
+    normalized_mat = normalize_brightness(brightness_mat)
+    return asciify(normalized_mat, ascii_map)
+
+
+class CLI:
+    def __init__(self):
+        self.ascii_map = ASCII_CHARS
+
+    def __call__(self) -> None:
+        self.main()
+
+    def parse_args(self) -> tuple[Path, Path]:
+        parser = argparse.ArgumentParser(description='Convert image to ASCII image')
+        parser.add_argument('image', help='The path to the image you want to convert')
+        parser.add_argument('-o', default=None, help="output file name")
+        parser.add_argument('--invert', action=argparse.BooleanOptionalAction)
+
+        args = parser.parse_args()
+
+        file_path = Path(args.image)
+        output_name = default_output_name(file_path)
+
+        if args.o and not Path(args.o).exists():
+            output_name = Path(args.o)
+
+        if args.invert:
+            self.ascii_map = ''.join(reversed(self.ascii_map))
+
+        return file_path, output_name
+
+    def main(self) -> None:
+        file_path, output_name = self.parse_args()
+
+        if not file_path.exists():
+            print(f"File {file_path.name} does not exist")
+            return
+
+        print(f"Loading file {file_path.name}")
+        image = load_image(file_path)
+
+        print("Converting file")
+        output = convert(self.ascii_map, image)
+        print(f"Finished!")
+
+        save_image(output, output_name)
+        print(f"File saved as {output_name.name}")
+
+
 if __name__ == '__main__':
+    main = CLI()
     main()
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
