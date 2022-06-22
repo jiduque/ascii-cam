@@ -2,8 +2,10 @@ import argparse
 
 from pathlib import Path
 
-from data import *
-from processing import convert
+import processing
+from data import ImageArray, ASCIIImage, ASCII_CHARS
+
+import click
 
 from PIL import Image
 
@@ -36,50 +38,71 @@ def default_output_name(path: Path) -> Path:
     return Path(f"{name}_ascii.txt")
 
 
-class CLI:
-    def __init__(self):
-        self.ascii_map = ASCII_CHARS
+@click.group("ask_y")
+def cli() -> None:
+    pass
 
-    def __call__(self) -> None:
-        self.main()
 
-    def parse_args(self) -> tuple[Path, Path]:
-        parser = argparse.ArgumentParser(description='Convert image to ASCII image')
-        parser.add_argument('image', help='The path to the image you want to convert')
-        parser.add_argument('-o', default=None, help="output file name")
-        parser.add_argument('--invert', action=argparse.BooleanOptionalAction)
+@click.command()
+@click.argument('image')
+@click.option('-i', '--invert', 'invert', is_flag=True)
+@click.option('-o', '--output', 'output')
+def convert(image: str, invert: bool = False, output: str | None = None) -> None:
+    file_path = Path(image)
+    if not file_path.exists():
+        print(f"File {file_path.name} does not exist")
+        return
 
-        args = parser.parse_args()
+    output_name = default_output_name(file_path)
+    if output and not Path(output).exists():
+        output_name = Path(output)
 
-        file_path = Path(args.image)
-        output_name = default_output_name(file_path)
+    ascii_map = ASCII_CHARS
+    if invert:
+        ascii_map = list(reversed(ascii_map))
 
-        if args.o and not Path(args.o).exists():
-            output_name = Path(args.o)
+    print(f"Loading file {file_path.name}")
+    image = load_image(file_path)
 
-        if args.invert:
-            self.ascii_map = ''.join(reversed(self.ascii_map))
+    print("Converting file")
+    ascii_pic = processing.convert(ascii_map, image)
+    print(f"Finished!")
 
-        return file_path, output_name
+    save_image(ascii_pic, output_name)
+    print(f"File saved as {output_name.name}")
 
-    def main(self) -> None:
-        file_path, output_name = self.parse_args()
 
-        if not file_path.exists():
-            print(f"File {file_path.name} does not exist")
-            return
-
-        print(f"Loading file {file_path.name}")
-        image = load_image(file_path)
-
-        print("Converting file")
-        output = convert(self.ascii_map, image)
-        print(f"Finished!")
-
-        save_image(output, output_name)
-        print(f"File saved as {output_name.name}")
+@click.command()
+@click.option('-i', '--invert', 'invert', is_flag=True)
+def stream(invert: bool = False) -> None:
+    print(f"Not working yet, bud. But {invert=}.")
 
 
 if __name__ == '__main__':
-    main = CLI()
-    main()
+    cli.add_command(convert, 'convert')
+    cli.add_command(stream, 'stream')
+    cli()
+
+# TODO: Use this shit to get webcam streaming
+# TODO: make io modules that will have the load/save image funcs and the CV webcam stuff
+'''
+import cv2
+
+cv2.namedWindow("preview")
+vc = cv2.VideoCapture(0)
+
+if vc.isOpened(): # try to get the first frame
+    rval, frame = vc.read()
+else:
+    rval = False
+
+while rval:
+    cv2.imshow("preview", frame)
+    rval, frame = vc.read()
+    key = cv2.waitKey(20)
+    if key == 27: # exit on ESC
+        break
+
+vc.release()
+cv2.destroyWindow("preview")
+'''
