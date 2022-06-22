@@ -1,2 +1,4 @@
 pillow >= 9.0
 numpy
+opencv-python
+click
