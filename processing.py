@@ -7,11 +7,16 @@ from data import *
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-def preprocess_image(image: Image) -> Image:
-    basewidth = 300
+def preprocess_image(image: Image, size: tuple[int, int] | None = None) -> Image:
     width, height = image.size
-    wpercent = (basewidth / float(width))
-    hsize = int((float(height) * float(wpercent)))
+
+    if size is None:
+        basewidth = 200
+        wpercent = (basewidth / float(width))
+        hsize = int((float(height) * float(wpercent)))
+
+    hsize, basewidth = size
+
     return image.resize((basewidth, hsize), Image.ANTIALIAS)
 
 

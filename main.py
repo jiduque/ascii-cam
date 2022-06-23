@@ -1,3 +1,5 @@
+import curses
+
 import processing
 
 from data import ASCII_CHARS, Path
@@ -55,19 +57,20 @@ def stream(invert: bool = False) -> None:
         ascii_map = list(reversed(ascii_map))
 
     vc = cv2.VideoCapture(0)
-
     rval = False
     if vc.isOpened():  # try to get the first frame
         rval, frame = vc.read()
 
+    stdscr = curses.initscr()
     while rval:
         rval, frame = vc.read()
-        render(ascii_map, frame)
+        render(ascii_map, frame, stdscr)
         key = cv2.waitKey(20)
         if key == 27:  # exit on ESC
             break
 
     vc.release()
+    stdscr.clear()
 
 
 if __name__ == '__main__':
