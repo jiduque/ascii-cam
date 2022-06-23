@@ -7,7 +7,7 @@ from processing import convert, preprocess_image, to_array
 from data import Image, ImageArray, ASCIIMap, ASCIIImage, Frame, Path
 
 
-UPDATE_RATE = 0.15
+UPDATE_RATE = 0.01
 
 
 def load_image(path: Path, size: tuple[int, int] | None = None) -> ImageArray:
