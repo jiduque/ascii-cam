@@ -7,6 +7,20 @@ from data import *
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
+def preprocess_image(image: Image) -> Image:
+    basewidth = 300
+    width, height = image.size
+    wpercent = (basewidth / float(width))
+    hsize = int((float(height) * float(wpercent)))
+    return image.resize((basewidth, hsize), Image.ANTIALIAS)
+
+
+def to_array(image: Image) -> ImageArray:
+    width, height = image.size
+    pixels = list(image.getdata())
+    return [pixels[i:i + width] for i in range(0, len(pixels), width)]
+
+
 def brightness(pixel: Pixel) -> float:
     # luminosity weights
     weights = (0.21, 0.72, 0.07)

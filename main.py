@@ -1,33 +1,10 @@
-from pathlib import Path
-
 import processing
-from data import ImageArray, ASCIIImage, ASCII_CHARS
+
+from data import ASCII_CHARS, Path
+from my_io import render, load_image, save_image
 
 import click
-
-from PIL import Image
-
-
-def preprocess_image(image: Image) -> Image:
-    basewidth = 300
-    width, height = image.size
-    wpercent = (basewidth / float(width))
-    hsize = int((float(height) * float(wpercent)))
-    return image.resize((basewidth, hsize), Image.ANTIALIAS)
-
-
-def load_image(path: Path) -> ImageArray:
-    with Image.open(path) as image:
-        new_image = preprocess_image(image)
-        width, height = new_image.size
-        pixels = list(new_image.getdata())
-        return [pixels[i:i + width] for i in range(0, len(pixels), width)]
-
-
-def save_image(image: ASCIIImage, path: Path) -> None:
-    with path.open(mode='w') as file:
-        output_string = '\n'.join([''.join(row) for row in image])
-        file.write(output_string)
+import cv2
 
 
 def default_output_name(path: Path) -> Path:
@@ -73,34 +50,27 @@ def convert(image: str, invert: bool = False, output: str | None = None) -> None
 @click.command()
 @click.option('-i', '--invert', 'invert', is_flag=True)
 def stream(invert: bool = False) -> None:
-    print(f"Not working yet, bud. But {invert=}.")
+    ascii_map = ASCII_CHARS
+    if invert:
+        ascii_map = list(reversed(ascii_map))
+
+    vc = cv2.VideoCapture(0)
+
+    rval = False
+    if vc.isOpened():  # try to get the first frame
+        rval, frame = vc.read()
+
+    while rval:
+        rval, frame = vc.read()
+        render(ascii_map, frame)
+        key = cv2.waitKey(20)
+        if key == 27:  # exit on ESC
+            break
+
+    vc.release()
 
 
 if __name__ == '__main__':
     cli.add_command(convert, 'convert')
     cli.add_command(stream, 'stream')
     cli()
-
-# TODO: Use this shit to get webcam streaming
-# TODO: make io modules that will have the load/save image funcs and the CV webcam stuff
-'''
-import cv2
-
-cv2.namedWindow("preview")
-vc = cv2.VideoCapture(0)
-
-if vc.isOpened(): # try to get the first frame
-    rval, frame = vc.read()
-else:
-    rval = False
-
-while rval:
-    cv2.imshow("preview", frame)
-    rval, frame = vc.read()
-    key = cv2.waitKey(20)
-    if key == 27: # exit on ESC
-        break
-
-vc.release()
-cv2.destroyWindow("preview")
-'''
