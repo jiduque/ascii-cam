@@ -15,7 +15,7 @@ def default_output_name(path: Path) -> Path:
     return Path(f"{name}_ascii.txt")
 
 
-@click.group("ask_y")
+@click.group("askey")
 def cli() -> None:
     pass
 

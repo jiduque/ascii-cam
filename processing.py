@@ -1,6 +1,7 @@
 import warnings
 
 from functools import partial
+from math import sqrt
 
 from data import *
 
@@ -26,14 +27,41 @@ def to_array(image: Image) -> ImageArray:
     return [pixels[i:i + width] for i in range(0, len(pixels), width)]
 
 
-def brightness(pixel: Pixel) -> float:
-    # luminosity weights
+def luminosity(pixel: Pixel) -> Brightness:
     weights = (0.21, 0.72, 0.07)
-
     output = 0
     for p, w in zip(pixel, weights):
         output += p * w
 
+    return output
+
+
+def lightness(pixel: Pixel) -> Brightness:
+    return max(pixel) + min(pixel) / 2
+
+
+def euclidean(pixel: Pixel) -> Brightness:
+    normalizer = sqrt(3)
+    output = sum(map(lambda x: x * x, pixel)) / normalizer
+    return output
+
+
+def average(pixel: Pixel) -> Brightness:
+    return sum(pixel) / 3
+
+
+def brightness(pixel: Pixel, algo: str = 'LIG') -> Brightness:
+    algo_catalog = {
+        'AVG': average,
+        'EUC': euclidean,
+        'LIG': lightness,
+        'LUM': luminosity
+    }
+
+    if algo not in algo_catalog:
+        raise f"Not a valid algorithm. Select one of {algo_catalog.keys()}"
+
+    output = algo_catalog[algo](pixel)
     return min(output, MAX_PIXEL_VALUE)
 
 
